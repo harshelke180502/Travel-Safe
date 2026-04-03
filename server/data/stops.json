@@ -1,0 +1,119 @@
+[
+  {"stop_id": "2201", "name": "Clark & Division", "lat": 41.903, "lon": -87.631, "route": "Route 22"},
+  {"stop_id": "2202", "name": "Clark & Chicago", "lat": 41.896, "lon": -87.631, "route": "Route 22"},
+  {"stop_id": "2203", "name": "Clark & Lake", "lat": 41.885, "lon": -87.630, "route": "Route 22"},
+  {"stop_id": "2204", "name": "Clark & Roosevelt", "lat": 41.867, "lon": -87.630, "route": "Route 22"},
+  {"stop_id": "2205", "name": "Clark & Cermak", "lat": 41.852, "lon": -87.630, "route": "Route 22"},
+  {"stop_id": "2206", "name": "Clark & 35th", "lat": 41.831, "lon": -87.630, "route": "Route 22"},
+
+  {"stop_id": "3601", "name": "Broadway & Addison", "lat": 41.947, "lon": -87.646, "route": "Route 36"},
+  {"stop_id": "3602", "name": "Broadway & Belmont", "lat": 41.940, "lon": -87.645, "route": "Route 36"},
+  {"stop_id": "3603", "name": "Broadway & Diversey", "lat": 41.932, "lon": -87.644, "route": "Route 36"},
+  {"stop_id": "3604", "name": "State & Lake", "lat": 41.885, "lon": -87.627, "route": "Route 36"},
+  {"stop_id": "3605", "name": "State & Harrison", "lat": 41.874, "lon": -87.627, "route": "Route 36"},
+  {"stop_id": "3606", "name": "State & 18th", "lat": 41.858, "lon": -87.627, "route": "Route 36"},
+
+  {"stop_id": "15101", "name": "Sheridan & Foster", "lat": 41.976, "lon": -87.654, "route": "Route 151"},
+  {"stop_id": "15102", "name": "Sheridan & Wilson", "lat": 41.965, "lon": -87.654, "route": "Route 151"},
+  {"stop_id": "15103", "name": "Sheridan & Irving Park", "lat": 41.954, "lon": -87.654, "route": "Route 151"},
+  {"stop_id": "15104", "name": "Michigan & Oak", "lat": 41.900, "lon": -87.624, "route": "Route 151"},
+  {"stop_id": "15105", "name": "Michigan & Randolph", "lat": 41.884, "lon": -87.624, "route": "Route 151"},
+  {"stop_id": "15106", "name": "Michigan & Roosevelt", "lat": 41.867, "lon": -87.624, "route": "Route 151"},
+
+  {"stop_id": "801", "name": "Halsted & 79th", "lat": 41.750, "lon": -87.644, "route": "Route 8"},
+  {"stop_id": "802", "name": "Halsted & 63rd", "lat": 41.780, "lon": -87.644, "route": "Route 8"},
+  {"stop_id": "803", "name": "Halsted & 47th", "lat": 41.808, "lon": -87.644, "route": "Route 8"},
+  {"stop_id": "804", "name": "Halsted & 35th", "lat": 41.831, "lon": -87.644, "route": "Route 8"},
+  {"stop_id": "805", "name": "Halsted & 18th", "lat": 41.858, "lon": -87.644, "route": "Route 8"},
+  {"stop_id": "806", "name": "Halsted & Lake", "lat": 41.885, "lon": -87.644, "route": "Route 8"},
+
+  {"stop_id": "14601", "name": "Marine & Foster", "lat": 41.976, "lon": -87.651, "route": "Route 146"},
+  {"stop_id": "14602", "name": "Marine & Lawrence", "lat": 41.969, "lon": -87.650, "route": "Route 146"},
+  {"stop_id": "14603", "name": "Marine & Montrose", "lat": 41.961, "lon": -87.649, "route": "Route 146"},
+  {"stop_id": "14604", "name": "Inner Lake Shore & Belmont", "lat": 41.940, "lon": -87.638, "route": "Route 146"},
+  {"stop_id": "14605", "name": "Michigan & Delaware", "lat": 41.899, "lon": -87.624, "route": "Route 146"},
+  {"stop_id": "14606", "name": "State & Jackson", "lat": 41.878, "lon": -87.627, "route": "Route 146"},
+
+  {"stop_id": "6001", "name": "Blue Island & Ashland", "lat": 41.850, "lon": -87.666, "route": "Route 60"},
+  {"stop_id": "6002", "name": "Blue Island & Damen", "lat": 41.855, "lon": -87.676, "route": "Route 60"},
+  {"stop_id": "6003", "name": "Blue Island & Halsted", "lat": 41.857, "lon": -87.647, "route": "Route 60"},
+  {"stop_id": "6004", "name": "Blue Island & Racine", "lat": 41.860, "lon": -87.656, "route": "Route 60"},
+  {"stop_id": "6005", "name": "Blue Island & Western", "lat": 41.862, "lon": -87.687, "route": "Route 60"},
+
+  {"stop_id": "1801", "name": "18th & Damen", "lat": 41.858, "lon": -87.676, "route": "Route 18"},
+  {"stop_id": "1802", "name": "18th & Ashland", "lat": 41.858, "lon": -87.666, "route": "Route 18"},
+  {"stop_id": "1803", "name": "18th & Halsted", "lat": 41.858, "lon": -87.647, "route": "Route 18"},
+  {"stop_id": "1804", "name": "18th & State", "lat": 41.858, "lon": -87.627, "route": "Route 18"},
+  {"stop_id": "1805", "name": "18th & Michigan", "lat": 41.858, "lon": -87.623, "route": "Route 18"},
+
+  {"stop_id": "9001", "name": "Ashland & 95th", "lat": 41.720, "lon": -87.663, "route": "Route 9"},
+  {"stop_id": "9002", "name": "Ashland & 79th", "lat": 41.750, "lon": -87.663, "route": "Route 9"},
+  {"stop_id": "9003", "name": "Ashland & 63rd", "lat": 41.780, "lon": -87.663, "route": "Route 9"},
+  {"stop_id": "9004", "name": "Ashland & 47th", "lat": 41.808, "lon": -87.663, "route": "Route 9"},
+  {"stop_id": "9005", "name": "Ashland & 35th", "lat": 41.831, "lon": -87.663, "route": "Route 9"},
+  {"stop_id": "9006", "name": "Ashland & Lake", "lat": 41.885, "lon": -87.663, "route": "Route 9"},
+
+  {"stop_id": "x9001", "name": "Ashland Express & 95th", "lat": 41.720, "lon": -87.663, "route": "Route X9"},
+  {"stop_id": "x9002", "name": "Ashland Express & 63rd", "lat": 41.780, "lon": -87.663, "route": "Route X9"},
+  {"stop_id": "x9003", "name": "Ashland Express & 47th", "lat": 41.808, "lon": -87.663, "route": "Route X9"},
+  {"stop_id": "x9004", "name": "Ashland Express & Roosevelt", "lat": 41.867, "lon": -87.663, "route": "Route X9"},
+
+  {"stop_id": "15501", "name": "Devon & Clark", "lat": 41.998, "lon": -87.670, "route": "Route 155"},
+  {"stop_id": "15502", "name": "Devon & Broadway", "lat": 41.998, "lon": -87.660, "route": "Route 155"},
+  {"stop_id": "15503", "name": "Devon & Sheridan", "lat": 41.998, "lon": -87.654, "route": "Route 155"},
+  {"stop_id": "15504", "name": "Devon & Ridge", "lat": 41.998, "lon": -87.680, "route": "Route 155"},
+  {"stop_id": "15505", "name": "Devon & Western", "lat": 41.998, "lon": -87.690, "route": "Route 155"},
+
+  
+  {"stop_id": "1001", "name": "Indiana & 35th", "lat": 41.831, "lon": -87.622, "route": "Route 1"},
+  {"stop_id": "1002", "name": "Indiana & 31st", "lat": 41.838, "lon": -87.622, "route": "Route 1"},
+  {"stop_id": "1003", "name": "Indiana & 26th", "lat": 41.844, "lon": -87.622, "route": "Route 1"},
+  {"stop_id": "1004", "name": "Michigan & 18th", "lat": 41.858, "lon": -87.623, "route": "Route 1"},
+  {"stop_id": "1005", "name": "Michigan & Randolph", "lat": 41.884, "lon": -87.624, "route": "Route 1"},
+
+  {"stop_id": "2001", "name": "Hyde Park & 51st", "lat": 41.802, "lon": -87.586, "route": "Route 2"},
+  {"stop_id": "2002", "name": "Hyde Park & 47th", "lat": 41.809, "lon": -87.586, "route": "Route 2"},
+  {"stop_id": "2003", "name": "Hyde Park & 43rd", "lat": 41.817, "lon": -87.586, "route": "Route 2"},
+  {"stop_id": "2004", "name": "Michigan & 35th", "lat": 41.831, "lon": -87.623, "route": "Route 2"},
+  {"stop_id": "2005", "name": "Michigan & Jackson", "lat": 41.878, "lon": -87.623, "route": "Route 2"},
+
+  {"stop_id": "7001", "name": "Harrison & Kedzie", "lat": 41.874, "lon": -87.705, "route": "Route 7"},
+  {"stop_id": "7002", "name": "Harrison & Western", "lat": 41.874, "lon": -87.686, "route": "Route 7"},
+  {"stop_id": "7003", "name": "Harrison & Ashland", "lat": 41.874, "lon": -87.666, "route": "Route 7"},
+  {"stop_id": "7004", "name": "Harrison & Halsted", "lat": 41.874, "lon": -87.647, "route": "Route 7"},
+  {"stop_id": "7005", "name": "Harrison & State", "lat": 41.874, "lon": -87.627, "route": "Route 7"},
+
+  {"stop_id": "8001", "name": "Halsted & 95th", "lat": 41.722, "lon": -87.644, "route": "Route 8"},
+  {"stop_id": "8002", "name": "Halsted & 79th", "lat": 41.750, "lon": -87.644, "route": "Route 8"},
+  {"stop_id": "8003", "name": "Halsted & 63rd", "lat": 41.780, "lon": -87.644, "route": "Route 8"},
+  {"stop_id": "8004", "name": "Halsted & 47th", "lat": 41.808, "lon": -87.644, "route": "Route 8"},
+  {"stop_id": "8005", "name": "Halsted & 35th", "lat": 41.831, "lon": -87.644, "route": "Route 8"},
+  {"stop_id": "8006", "name": "Halsted & Lake", "lat": 41.885, "lon": -87.644, "route": "Route 8"},
+
+  {"stop_id": "12001", "name": "Roosevelt & Austin", "lat": 41.866, "lon": -87.774, "route": "Route 12"},
+  {"stop_id": "12002", "name": "Roosevelt & Cicero", "lat": 41.866, "lon": -87.744, "route": "Route 12"},
+  {"stop_id": "12003", "name": "Roosevelt & Kedzie", "lat": 41.866, "lon": -87.705, "route": "Route 12"},
+  {"stop_id": "12004", "name": "Roosevelt & Halsted", "lat": 41.866, "lon": -87.647, "route": "Route 12"},
+  {"stop_id": "12005", "name": "Roosevelt & State", "lat": 41.866, "lon": -87.627, "route": "Route 12"},
+
+  {"stop_id": "6201", "name": "Archer & Pulaski", "lat": 41.803, "lon": -87.722, "route": "Route 62"},
+  {"stop_id": "6202", "name": "Archer & Kedzie", "lat": 41.803, "lon": -87.705, "route": "Route 62"},
+  {"stop_id": "6203", "name": "Archer & Ashland", "lat": 41.803, "lon": -87.666, "route": "Route 62"},
+  {"stop_id": "6204", "name": "Archer & Halsted", "lat": 41.803, "lon": -87.647, "route": "Route 62"},
+  {"stop_id": "6205", "name": "Archer & State", "lat": 41.803, "lon": -87.627, "route": "Route 62"},
+
+  {"stop_id": "7901", "name": "79th & Cicero", "lat": 41.750, "lon": -87.742, "route": "Route 79"},
+  {"stop_id": "7902", "name": "79th & Pulaski", "lat": 41.750, "lon": -87.722, "route": "Route 79"},
+  {"stop_id": "7903", "name": "79th & Kedzie", "lat": 41.750, "lon": -87.705, "route": "Route 79"},
+  {"stop_id": "7904", "name": "79th & Ashland", "lat": 41.750, "lon": -87.663, "route": "Route 79"},
+  {"stop_id": "7905", "name": "79th & Halsted", "lat": 41.750, "lon": -87.647, "route": "Route 79"},
+
+  {"stop_id": "15701", "name": "Streeterville & Navy Pier", "lat": 41.891, "lon": -87.607, "route": "Route 157"},
+  {"stop_id": "15702", "name": "Lake Shore & Grand", "lat": 41.892, "lon": -87.612, "route": "Route 157"},
+  {"stop_id": "15703", "name": "Michigan & Illinois", "lat": 41.890, "lon": -87.624, "route": "Route 157"},
+  {"stop_id": "15704", "name": "Michigan & Wacker", "lat": 41.887, "lon": -87.624, "route": "Route 157"},
+  {"stop_id": "15705", "name": "State & Lake", "lat": 41.885, "lon": -87.627, "route": "Route 157"}
+
+
+
+]

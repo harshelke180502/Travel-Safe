@@ -1,0 +1,50 @@
+[
+  {
+    "route": "Route 36",
+    "lat": 41.8781,
+    "lon": -87.6298,
+    "delay": false
+  },
+  {
+    "route": "Route 18",
+    "lat": 41.8835,
+    "lon": -87.6352,
+    "delay": true
+  },
+  {
+    "route": "Route 36",
+    "lat": 41.8762,
+    "lon": -87.6285,
+    "delay": false
+  },
+  {
+    "route": "Route 151",
+    "lat": 41.8820,
+    "lon": -87.6315,
+    "delay": false
+  },
+  {
+    "route": "Route 18",
+    "lat": 41.8795,
+    "lon": -87.6270,
+    "delay": true
+  },
+  {
+    "route": "Route 151",
+    "lat": 41.8850,
+    "lon": -87.6380,
+    "delay": false
+  },
+  {
+    "route": "Route 36",
+    "lat": 41.8775,
+    "lon": -87.6310,
+    "delay": false
+  },
+  {
+    "route": "Route 18",
+    "lat": 41.8808,
+    "lon": -87.6340,
+    "delay": false
+  }
+]
