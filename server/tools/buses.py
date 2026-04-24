@@ -1,21 +1,26 @@
 """
 Bus tools for SafeTravel MCP server.
 
-Implements bus status and route operations.
+Tries CTA Bus Tracker API first; falls back to buses.json on any failure.
 """
 
 import json
 import os
 import re
+import sys
 from pathlib import Path
 from typing import List, Optional
 
 import requests
+from dotenv import load_dotenv
 from pydantic import BaseModel
 
 from server.schemas import RouteInput
-from dotenv import load_dotenv
+
 load_dotenv()
+
+CTA_API_URL = "https://www.ctabustracker.com/bustime/api/v2/getvehicles"
+API_TIMEOUT = 10
 
 
 class BusStatus(BaseModel):
@@ -26,190 +31,118 @@ class BusStatus(BaseModel):
     delay: bool
 
 
-# CTA Bus Tracker API endpoint (Socrata v2)
-CTA_API_URL = "http://www.ctabustracker.com/bustime/api/v2/getvehicles"
-
-# API timeout
-API_TIMEOUT = 5  # seconds
-
-
 def _extract_route_number(route_str: str) -> str:
-    """
-    Extract route number from route string.
-    
-    Args:
-        route_str: Route string like "Route 22"
-    
-    Returns:
-        Route number like "22", or empty string if not found
-    """
     match = re.search(r"(\d+)", route_str)
-    if match:
-        return match.group(1)
-    return ""
+    return match.group(1) if match else ""
 
 
 def _fetch_buses_from_api(route_input: RouteInput) -> Optional[List[dict]]:
-    """
-    Fetch buses from CTA Bus Tracker API.
-    
-    Args:
-        route_input: RouteInput with route name
-    
-    Returns:
-        List of bus records from API, or None on failure
-    """
+    """Try live CTA Bus Tracker API. Returns None on any failure."""
     api_key = os.getenv("CTA_API_KEY")
     if not api_key:
-        # API key not available, fail silently for fallback
+        print("[buses] CTA_API_KEY not set — skipping live API", file=sys.stderr)
         return None
-    
+
     route_number = _extract_route_number(route_input.route)
     if not route_number:
+        print(f"[buses] Could not extract route number from '{route_input.route}'", file=sys.stderr)
         return None
-    
+
     try:
-        params = {
-            "key": api_key,
-            "rt": route_number,
-            "format": "json"
-        }
-        
         response = requests.get(
             CTA_API_URL,
-            params=params,
-            timeout=API_TIMEOUT
+            params={"key": api_key, "rt": route_number, "format": "json"},
+            timeout=API_TIMEOUT,
         )
         response.raise_for_status()
-        
+
         data = response.json()
-        # print(f"API response data: {data}")
-        
-        # CTA API returns response with bustime-response structure
-        # Access vehicle list: data["bustime-response"]["vehicle"]
         if not isinstance(data, dict):
+            print("[buses] Unexpected API response format", file=sys.stderr)
             return None
-        
-        bustime_response = data.get("bustime-response")
-        if not isinstance(bustime_response, dict):
+
+        bustime_response = data.get("bustime-response", {})
+        print(f"[buses] getvehicles raw response keys: {list(bustime_response.keys())}", file=sys.stderr)
+
+        # Surface any API-level errors
+        errors = bustime_response.get("error")
+        if errors:
+            msg = errors[0].get("msg", "unknown") if isinstance(errors, list) else str(errors)
+            print(f"[buses] CTA API error: {msg}", file=sys.stderr)
             return None
-        
+
         vehicles = bustime_response.get("vehicle")
-        # print(f"Extracted vehicles from API: {vehicles}")
-        
-        # Handle case where "vehicle" key is missing or empty
         if vehicles is None:
-            return None
-        
-        # Ensure vehicles is a list (can be single item)
+            print("[buses] No vehicles returned from API (route may have no active buses)", file=sys.stderr)
+            return []
+
         if not isinstance(vehicles, list):
             vehicles = [vehicles]
-        
+
+        print(f"[buses] CTA API returned {len(vehicles)} vehicles for route {route_number}", file=sys.stderr)
         return vehicles
-    except Exception:
-        # Silently return None on any API failure for graceful fallback
+
+    except Exception as e:
+        print(f"[buses] CTA API failed ({type(e).__name__}: {e}) — will use mock data", file=sys.stderr)
         return None
 
 
-def _load_buses_from_mock(route_input: RouteInput) -> List[dict]:
-    """
-    Load buses from local mock data file.
-    
-    Args:
-        route_input: RouteInput with route name
-    
-    Returns:
-        List of bus records from mock data
-    
-    Raises:
-        FileNotFoundError: If buses.json cannot be found
-        json.JSONDecodeError: If buses.json is invalid
-    """
+def _load_buses_from_mock() -> List[dict]:
+    """Load buses from local buses.json fallback."""
     data_dir = Path(__file__).parent.parent / "data"
     buses_file = data_dir / "buses.json"
-    
+
     if not buses_file.exists():
-        raise FileNotFoundError(f"Buses data file not found: {buses_file}")
-    
+        return []
+
     with open(buses_file, "r") as f:
         buses_data = json.load(f)
-    
-    if not isinstance(buses_data, list):
-        raise ValueError("Buses data must be a JSON array")
-    
-    return buses_data
+
+    return buses_data if isinstance(buses_data, list) else []
 
 
 def get_bus_status(route_input: RouteInput) -> List[BusStatus]:
     """
     Get all buses on a given route with their current status.
-    
-    Attempts to fetch live data from CTA Bus Tracker API.
-    Falls back to mock data if API is unavailable or API key is not configured.
-    
-    Args:
-        route_input: RouteInput with route name
-    
-    Returns:
-        List of BusStatus records for buses on the specified route.
-        Empty list if no buses found on route (not an error).
+
+    Tries CTA Bus Tracker API first; falls back to buses.json on any failure.
     """
-    buses_data = None
-    
-    # Try to fetch from live API first
     buses_data = _fetch_buses_from_api(route_input)
-    # print("FINAL buses_data of api:", buses_data[:2] if buses_data else "EMPTY")
-    
-    # Fall back to mock data if API fails or returns empty
+
     if buses_data is None:
-        buses_data = _load_buses_from_mock(route_input)
-    # print("FINAL buses_data (after fallback to mock):", buses_data[:2] if buses_data else "EMPTY")
-    # Validate data structure
+        print(f"[buses] Using MOCK DATA (buses.json) for {route_input.route}", file=sys.stderr)
+        buses_data = _load_buses_from_mock()
+    else:
+        print(f"[buses] Using LIVE CTA API for {route_input.route}", file=sys.stderr)
+
     if not isinstance(buses_data, list):
         buses_data = []
-    
-    # Filter and create records
-    bus_statuses = []
-    route_number = _extract_route_number(route_input.route)
 
     route_number = _extract_route_number(route_input.route)
+    bus_statuses = []
 
     for bus in buses_data:
         try:
-            latitude_val = bus.get("lat")
-            longitude_val = bus.get("lon")
-
-            if latitude_val is None or longitude_val is None:
+            lat = bus.get("lat")
+            lon = bus.get("lon")
+            if lat is None or lon is None:
                 continue
 
-            latitude = float(latitude_val)
-            longitude = float(longitude_val)
+            delay = bool(bus["dly"]) if "dly" in bus else bool(bus.get("delay", False))
 
-            # FIX delay
-            if "dly" in bus:
-                delay = bool(bus["dly"])
-                # print("API bus record found")
-            else:
-                delay = bool(bus.get("delay", False))
-                # print("Mock bus record found")
-
-            # FIX route matching
             api_route = bus.get("rt")
             mock_route = bus.get("route")
-
             match_api = api_route and str(api_route) == route_number
             match_mock = mock_route == route_input.route
 
             if match_api or match_mock:
-                record = BusStatus(
+                bus_statuses.append(BusStatus(
                     route=f"Route {route_number}",
-                    lat=latitude,
-                    lon=longitude,
-                    delay=delay
-                )
-                bus_statuses.append(record)
-
+                    lat=float(lat),
+                    lon=float(lon),
+                    delay=delay,
+                ))
         except Exception:
             continue
-        
+
     return bus_statuses

@@ -145,7 +145,10 @@ function RecentCrimesCard({ crimes }) {
               <span className="text-gray-400 text-xs font-mono w-4">{i + 1}</span>
               <div>
                 <p className="text-sm font-medium text-gray-800">{c.type}</p>
-                <p className="text-xs text-gray-400">{(c.distance * 111).toFixed(2)} km away</p>
+                {c.description && (
+                  <p className="text-xs text-gray-500">{c.description}</p>
+                )}
+                <p className="text-xs text-gray-400">{c.distance.toFixed(2)} km away</p>
               </div>
             </div>
             <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${severityStyle(c.severity)}`}>
@@ -159,7 +162,15 @@ function RecentCrimesCard({ crimes }) {
 }
 
 function GenericResultCard({ data }) {
-  const items = Array.isArray(data) ? data : (data ? [data] : [])
+  if (typeof data === 'string') {
+    return (
+      <Card title="Result" icon="📋">
+        <p className="text-sm text-gray-700 whitespace-pre-wrap">{data}</p>
+      </Card>
+    )
+  }
+
+  const items = Array.isArray(data) ? data.filter(i => i && typeof i === 'object') : (data && typeof data === 'object' ? [data] : [])
 
   if (!items.length) {
     return (
@@ -177,7 +188,7 @@ function GenericResultCard({ data }) {
             {Object.entries(item).map(([k, v]) => (
               <div key={k} className="flex justify-between items-center px-3 py-2 text-sm">
                 <span className="font-mono text-gray-500">{k}</span>
-                <span className="text-gray-800">{String(v)}</span>
+                <span className="text-gray-800">{typeof v === 'object' ? JSON.stringify(v) : String(v)}</span>
               </div>
             ))}
           </div>
@@ -235,13 +246,7 @@ export default function App() {
     }
   }
 
-  // _clean_mcp_result returns a list; unwrap single-item lists for structured views
-  const rawResult = result?.result
-  const firstItem = Array.isArray(rawResult) ? rawResult[0] : rawResult
-  const isSafetyResult = firstItem?.risk_level !== undefined
-  const safetyData = isSafetyResult ? firstItem : null
-  const tool = result?.tool
-  const args = result?.arguments
+  const steps = result?.steps ?? []
 
   return (
     <div className="min-h-screen bg-gray-50 py-10 px-4">
@@ -306,16 +311,25 @@ export default function App() {
         {/* Results */}
         {result && !loading && (
           <div className="space-y-4">
-            {tool && <QueryFlowCard tool={tool} args={args} />}
+            {steps.map((step, i) => {
+              const rawResult = step.result
+              const firstItem = Array.isArray(rawResult) ? rawResult[0] : rawResult
+              const isSafetyResult = firstItem?.risk_level !== undefined
 
-            {isSafetyResult ? (
-              <>
-                <SafetyResultCard data={safetyData} />
-                <RecentCrimesCard crimes={safetyData?.recent_crimes} />
-              </>
-            ) : (
-              <GenericResultCard data={rawResult} />
-            )}
+              return (
+                <div key={i} className="space-y-4">
+                  <QueryFlowCard tool={step.tool} args={step.arguments} />
+                  {isSafetyResult ? (
+                    <>
+                      <SafetyResultCard data={firstItem} />
+                      <RecentCrimesCard crimes={firstItem?.recent_crimes} />
+                    </>
+                  ) : (
+                    <GenericResultCard data={rawResult} />
+                  )}
+                </div>
+              )
+            })}
           </div>
         )}
 

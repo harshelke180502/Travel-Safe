@@ -28,25 +28,39 @@ MCP_TOOL_NAMES = [
     "get_stops_tool",
     "assess_route_safety_tool",
     "report_incident_tool",
+    "get_incidents_tool",
 ]
 
 SYSTEM_PROMPT = """You are a travel safety assistant for Chicago.
 
-You must choose EXACTLY ONE tool from the list below and return ONLY a JSON object.
-Do not include any explanation, markdown, or extra text — just the raw JSON.
+Choose one or more tools based on what the query needs and call them in logical order.
+Return ONLY a JSON array — no explanation, no markdown, just raw JSON.
 
-Available tools:
-- get_recent_crimes_tool     : requires arguments: lat (float), lon (float)
-- get_bus_status_tool        : requires arguments: route (str, e.g. "Route 22")
-- get_stops_tool             : requires arguments: route (str, e.g. "Route 36")
-- assess_route_safety_tool   : requires arguments: origin_lat (float), origin_lon (float), dest_lat (float), dest_lon (float), route (str, optional)
-- report_incident_tool       : requires arguments: location (str, "lat,lon"), description (str)
+Tool selection rules:
+- get_stops_tool         → bus stop locations on a route
+- get_bus_status_tool    → live bus positions and delay status on a route
+- report_incident_tool   → WRITE: user wants to submit/report a new safety incident
+- get_incidents_tool     → READ: user wants to see all reported incidents from the database
+- get_recent_crimes_tool → crime data near a specific coordinate
+- assess_route_safety_tool → overall route safety score between two locations
 
-Response format (strict):
-{
-  "tool": "<tool_name>",
-  "arguments": { ... }
-}"""
+Multi-tool rules:
+- "Get bus stops and show incidents nearby" → [get_stops_tool, get_incidents_tool]
+- "Report hazard and show recent incidents" → [report_incident_tool, get_incidents_tool]
+- "Is route 22 safe and show live buses"   → [assess_route_safety_tool, get_bus_status_tool]
+
+Available tools and their arguments:
+- get_recent_crimes_tool    : location (str, "lat,lon" OR place name e.g. "UIC", "Pilsen", "Michigan Avenue")
+- get_bus_status_tool       : route (str, e.g. "Route 22")
+- get_stops_tool            : route (str, e.g. "Route 36")
+- assess_route_safety_tool  : origin_lat (float), origin_lon (float), dest_lat (float), dest_lon (float), route (str, optional)
+- report_incident_tool      : location (str, "lat,lon" OR place name e.g. "UIC", "N LaSalle St"), description (str)
+- get_incidents_tool        : no arguments
+
+Response format (always an array, even for a single tool):
+[
+  { "tool": "<tool_name>", "arguments": { ... } }
+]"""
 
 MCP_TIMEOUT = 15  # seconds to wait for MCP response
 
@@ -55,21 +69,21 @@ MCP_TIMEOUT = 15  # seconds to wait for MCP response
 # Step 1 – Ask Claude which tool to call
 # ---------------------------------------------------------------------------
 
-def _ask_claude(user_query: str) -> dict:
+def _ask_claude(user_query: str) -> list:
     """
-    Send user_query to Claude and parse its JSON tool-selection response.
+    Send user_query to Claude and parse its JSON array of tool calls.
 
     Returns:
-        dict with keys "tool" and "arguments"
+        List of dicts, each with keys "tool" and "arguments"
 
     Raises:
-        ValueError: if Claude returns invalid JSON or missing keys
+        ValueError: if Claude returns invalid JSON or an unknown tool name
     """
     client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
     message = client.messages.create(
         model="claude-opus-4-6",
-        max_tokens=512,
+        max_tokens=1024,
         system=SYSTEM_PROMPT,
         messages=[{"role": "user", "content": user_query}],
     )
@@ -88,14 +102,21 @@ def _ask_claude(user_query: str) -> dict:
     except json.JSONDecodeError as exc:
         raise ValueError(f"Claude returned invalid JSON: {exc}\nRaw response: {raw}") from exc
 
-    if "tool" not in parsed or "arguments" not in parsed:
-        raise ValueError(f"Claude JSON missing 'tool' or 'arguments' keys: {parsed}")
+    # Normalise: wrap a bare single-object response in a list
+    if isinstance(parsed, dict):
+        parsed = [parsed]
 
-    if parsed["tool"] not in MCP_TOOL_NAMES:
-        raise ValueError(
-            f"Claude chose unknown tool '{parsed['tool']}'. "
-            f"Valid tools: {MCP_TOOL_NAMES}"
-        )
+    if not isinstance(parsed, list) or not parsed:
+        raise ValueError(f"Claude response must be a non-empty JSON array: {parsed}")
+
+    for step in parsed:
+        if "tool" not in step or "arguments" not in step:
+            raise ValueError(f"Tool call missing 'tool' or 'arguments': {step}")
+        if step["tool"] not in MCP_TOOL_NAMES:
+            raise ValueError(
+                f"Claude chose unknown tool '{step['tool']}'. "
+                f"Valid tools: {MCP_TOOL_NAMES}"
+            )
 
     return parsed
 
@@ -188,7 +209,7 @@ def _call_mcp_tool(tool_name: str, arguments: dict) -> Any:
         [sys.executable, "-m", "server.mcp_server"],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,  # suppress server debug output
+        stderr=sys.stderr,  # forward MCP subprocess debug output to terminal
     )
 
     try:
@@ -259,17 +280,24 @@ def query_llm(user_query: str) -> Any:
         RuntimeError: if the MCP server returns an error.
         TimeoutError: if the MCP server is unresponsive.
     """
-    # Step 1: Claude decides which tool to call
-    claude_decision = _ask_claude(user_query)
-    tool_name = claude_decision["tool"]
-    arguments = claude_decision["arguments"]
+    # Step 1: Claude decides which tools to call
+    steps = _ask_claude(user_query)
 
-    print(f"[llm_mcp_client] Claude selected: {tool_name}")
-    print(f"[llm_mcp_client] Arguments:       {json.dumps(arguments)}")
+    # Step 2: Execute each tool in sequence
+    results = []
+    for step in steps:
+        tool_name = step["tool"]
+        arguments = step["arguments"]
+        print(f"[llm_mcp_client] Claude selected: {tool_name}")
+        print(f"[llm_mcp_client] Arguments:       {json.dumps(arguments)}")
+        raw = _call_mcp_tool(tool_name, arguments)
+        results.append({
+            "tool": tool_name,
+            "arguments": arguments,
+            "result": _clean_mcp_result(raw),
+        })
 
-    # Step 2: MCP server executes the tool
-    result = _call_mcp_tool(tool_name, arguments)    
-    return _clean_mcp_result(result)
+    return results
 
 
 # ---------------------------------------------------------------------------

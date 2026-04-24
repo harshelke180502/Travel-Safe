@@ -12,7 +12,6 @@ from dotenv import load_dotenv
 import os
 
 load_dotenv()
-print(os.getenv("ANTHROPIC_API_KEY"))
 
 
 app = FastAPI(title="SafeTravel API")
@@ -37,18 +36,20 @@ def handle_query(req: QueryRequest):
     try:
         from client.llm_mcp_client import _ask_claude, _call_mcp_tool, _clean_mcp_result
 
-        # Step 1: Claude picks tool + arguments
-        decision = _ask_claude(req.query)
-        tool = decision["tool"]
-        arguments = decision["arguments"]
+        # Step 1: Claude returns an ordered list of tool calls
+        steps = _ask_claude(req.query)
 
-        # Step 2: MCP server executes the tool
-        raw = _call_mcp_tool(tool, arguments)
+        # Step 2: Execute each tool in sequence, collect results
+        results = []
+        for step in steps:
+            raw = _call_mcp_tool(step["tool"], step["arguments"])
+            results.append({
+                "tool": step["tool"],
+                "arguments": step["arguments"],
+                "result": _clean_mcp_result(raw),
+            })
 
-        # Step 3: Unwrap MCP envelope { content: [{type, text}], isError }
-        result = _clean_mcp_result(raw)
-
-        return {"tool": tool, "arguments": arguments, "result": result}
+        return {"steps": results}
 
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))

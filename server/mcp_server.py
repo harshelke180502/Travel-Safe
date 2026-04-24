@@ -4,6 +4,8 @@ Main MCP server implementation for SafeTravel.
 Orchestrates the MCP server, tools, and safety mechanisms.
 """
 
+import sys
+import requests
 from mcp.server.fastmcp import FastMCP
 
 from server.schemas.models import LocationInput, RouteInput, IncidentReportInput
@@ -18,11 +20,36 @@ from server.tools import (
 mcp = FastMCP("SafeTravel")
 
 
+def _resolve_location(location: str) -> tuple:
+    """Parse 'lat,lon' or geocode a Chicago place name via Nominatim."""
+    parts = location.split(",")
+    if len(parts) == 2:
+        try:
+            return float(parts[0].strip()), float(parts[1].strip())
+        except ValueError:
+            pass
+    print(f"[mcp] geocoding '{location}' via Nominatim", file=sys.stderr)
+    resp = requests.get(
+        "https://nominatim.openstreetmap.org/search",
+        params={"q": f"{location}, Chicago, IL", "format": "json", "limit": 1},
+        headers={"User-Agent": "SafeTravel/1.0"},
+        timeout=5,
+    )
+    resp.raise_for_status()
+    results = resp.json()
+    if not results:
+        raise ValueError(f"Could not geocode location: '{location}'")
+    lat, lon = float(results[0]["lat"]), float(results[0]["lon"])
+    print(f"[mcp] geocoded to ({lat}, {lon})", file=sys.stderr)
+    return lat, lon
+
+
 @mcp.tool()
-def get_recent_crimes_tool(lat: float, lon: float) -> list:
-    """Get recent crimes near a given location."""
-    location = LocationInput(latitude=lat, longitude=lon)
-    crimes = get_recent_crimes(location)
+def get_recent_crimes_tool(location: str) -> list:
+    """Get recent crimes near a location. Accepts 'lat,lon' or a place name like 'UIC', 'Pilsen', 'Michigan Avenue'."""
+    lat, lon = _resolve_location(location)
+    loc = LocationInput(latitude=lat, longitude=lon)
+    crimes = get_recent_crimes(loc)
     return [crime.model_dump() for crime in crimes]
 
 
@@ -59,21 +86,21 @@ def assess_route_safety_tool(
 
 @mcp.tool()
 def report_incident_tool(location: str, description: str) -> dict:
-    """Report a travel safety incident at a location (lat,lon or keyword)."""
-    # Parse "lat,lon" string into coordinates
-    parts = location.split(",")
-    if len(parts) == 2:
-        lat = float(parts[0].strip())
-        lon = float(parts[1].strip())
-    else:
-        raise ValueError(
-            f"Invalid location format '{location}'. Expected 'lat,lon' (e.g. '41.8781,-87.6298')."
-        )
-
+    """Report a travel safety incident. Location can be 'lat,lon' or any place name like 'UIC', 'N LaSalle St', 'Wicker Park'."""
+    lat, lon = _resolve_location(location)
     loc_input = LocationInput(latitude=lat, longitude=lon)
     incident = IncidentReportInput(location=loc_input, description=description)
     result = report_incident(incident)
     return result.model_dump()
+
+
+@mcp.tool()
+def get_incidents_tool(location: str) -> list:
+    """Get all safety incidents near a location — combines Chicago Open Data API crimes and user-reported DB incidents, sorted by severity then distance. Accepts 'lat,lon' or a place name like 'UIC', 'Pilsen'."""
+    lat, lon = _resolve_location(location)
+    loc = LocationInput(latitude=lat, longitude=lon)
+    crimes = get_recent_crimes(loc)
+    return [crime.model_dump() for crime in crimes]
 
 
 if __name__ == "__main__":

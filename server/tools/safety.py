@@ -6,7 +6,7 @@ Implements safety risk evaluation for travel routes.
 
 import json
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import List, Optional, Tuple
 
@@ -100,63 +100,54 @@ def _calculate_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> f
 
 def load_recent_incidents() -> List[dict]:
     """
-    Load user-reported incidents from incidents.log file.
-    
-    File format: CSV with timestamp,latitude,longitude,description (one per line)
-    
+    Load user-reported incidents from PostgreSQL.
+
+    Falls back to incidents.log if the database is unavailable.
+
     Returns:
         List of incident dicts with keys: timestamp, latitude, longitude, description
-        Empty list if file does not exist or contains no valid records
     """
+    # Primary: read from PostgreSQL
+    try:
+        from server.db import load_recent_incidents as db_load
+        return db_load()
+    except Exception:
+        pass  # fall through to log-file fallback
+
+    # Fallback: read from incidents.log
     incidents = []
-    
     data_dir = Path(__file__).parent.parent / "data"
     log_file = data_dir / "incidents.log"
-    
-    # Return empty list if file does not exist
+
     if not log_file.exists():
         return incidents
-    
+
     try:
         with open(log_file, "r", encoding="utf-8") as f:
-            for line_num, line in enumerate(f, 1):
+            for line in f:
                 line = line.strip()
                 if not line:
                     continue
-                
-                # Skip lines that don't have at least 4 comma-separated fields
                 parts = line.split(",", 3)
                 if len(parts) < 4:
                     continue
-                
                 try:
-                    timestamp_str = parts[0].strip()
-                    latitude_str = parts[1].strip()
-                    longitude_str = parts[2].strip()
-                    description = parts[3].strip()
-                    
-                    # Validate and convert fields
-                    timestamp = datetime.fromisoformat(timestamp_str)
-                    latitude = float(latitude_str)
-                    longitude = float(longitude_str)
-                    
-                    # Validate coordinate ranges
+                    timestamp = datetime.fromisoformat(parts[0].strip())
+                    latitude = float(parts[1].strip())
+                    longitude = float(parts[2].strip())
                     if not (-90 <= latitude <= 90 and -180 <= longitude <= 180):
                         continue
-                    
                     incidents.append({
                         "timestamp": timestamp,
                         "latitude": latitude,
                         "longitude": longitude,
-                        "description": description
+                        "description": parts[3].strip(),
                     })
                 except (ValueError, IndexError):
-                    # Skip malformed lines
                     continue
     except IOError:
-        # Return empty list if file cannot be read
         return incidents
-    
+
     return incidents
 
 
@@ -183,7 +174,7 @@ def count_nearby_incidents(
     Returns:
         Count of nearby recent incidents
     """
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     time_cutoff = now - timedelta(hours=hours_threshold)
     
     nearby_count = 0
@@ -230,7 +221,7 @@ def collect_nearby_incidents(
     Returns:
         Count of unique nearby recent incidents
     """
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     time_cutoff = now - timedelta(hours=hours_threshold)
     
     # Debug logging
@@ -304,6 +295,7 @@ def assess_route_safety(
         crime_count, and incident_count
     """
     reasons = []
+    api_errors = []
     risk_level = "low"
     total_crime_count = 0
     total_incident_count = 0
@@ -329,7 +321,7 @@ def assess_route_safety(
                 f"Crime activity detected near origin ({origin_crime_count} incidents in nearby area)"
             )
     except Exception as e:
-        reasons.append(f"Unable to check crimes at origin: {str(e)}")
+        api_errors.append(f"origin crimes: {str(e)}")
     
     # Check crimes at destination
     try:
@@ -343,7 +335,7 @@ def assess_route_safety(
                 f"Crime activity detected near destination ({dest_crime_count} incidents in nearby area)"
             )
     except Exception as e:
-        reasons.append(f"Unable to check crimes at destination: {str(e)}")
+        api_errors.append(f"destination crimes: {str(e)}")
     
     # Extract recent crimes details: top 5 by distance
     recent_crimes = []
@@ -354,7 +346,8 @@ def assess_route_safety(
             {
                 "type": crime.type,
                 "severity": crime.severity,
-                "distance": round(crime.distance, 4)
+                "distance": round(crime.distance, 4),
+                "description": crime.description,
             }
             for crime in sorted_crimes
         ]
@@ -408,7 +401,12 @@ def assess_route_safety(
                 bus_reason = f"Bus delays on route {route} ({delay_count} of {len(buses)} buses delayed)"
                 reasons.append(bus_reason)
         except Exception as e:
-            reasons.append(f"Unable to check bus status for route {route}: {str(e)}")
+            api_errors.append(f"bus status for route {route}: {str(e)}")
+
+    if api_errors:
+        raise RuntimeError(
+            "Live data unavailable: " + "; ".join(api_errors)
+        )
     
     # Generate recommendation based on risk level
     if risk_level == "high":

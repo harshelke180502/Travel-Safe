@@ -4,10 +4,9 @@ Tools for SafeTravel MCP server.
 Implements safety and travel-related operations.
 """
 
-import json
 import math
-from pathlib import Path
-from typing import List, Optional
+import sys
+from typing import List
 
 import requests
 from pydantic import BaseModel
@@ -20,6 +19,7 @@ class CrimeRecord(BaseModel):
     type: str
     severity: str
     distance: float
+    description: str = ""
 
 
 # Chicago Open Data API endpoint (Socrata v2)
@@ -28,9 +28,11 @@ CHICAGO_API_URL = "https://data.cityofchicago.org/resource/x2n5-8w5q.json"
 # Timeout for API requests
 API_TIMEOUT = 5  # seconds
 
-# Distance threshold for nearby crimes: ~1.5km in degrees at Chicago latitude
-# 0.015 degrees ≈ 1.5km at latitude 41.8°N
-DISTANCE_THRESHOLD_DEGREES = 0.015
+# Final distance threshold in kilometers for haversine filtering
+DISTANCE_THRESHOLD_KM = 1.5
+
+# Bounding-box prefilter in degrees (~1.5km near Chicago)
+BOUNDING_BOX_DEGREES = 0.015
 
 
 def _derive_severity(crime_type: str) -> str:
@@ -69,8 +71,8 @@ def _derive_severity(crime_type: str) -> str:
 
 def _fetch_crimes_from_api(
     location: LocationInput,
-    radius_degrees: float = DISTANCE_THRESHOLD_DEGREES
-) -> Optional[List[dict]]:
+    bounding_box_degrees: float = BOUNDING_BOX_DEGREES
+) -> List[dict]:
     """
     Fetch crimes from Chicago Open Data API using geospatial filter.
     
@@ -79,137 +81,155 @@ def _fetch_crimes_from_api(
     
     Args:
         location: Target location (latitude, longitude)
-        radius_degrees: Search radius in degrees (default ~1.5km)
+        bounding_box_degrees: Bounding-box half-width in degrees (default ~1.5km)
     
     Returns:
-        List of crime records from API, or None on failure
+        List of crime records from API
+
+    Raises:
+        RuntimeError: If the API request fails or returns an unexpected payload
     """
+    lat_min = location.latitude - bounding_box_degrees
+    lat_max = location.latitude + bounding_box_degrees
+    lon_min = location.longitude - bounding_box_degrees
+    lon_max = location.longitude + bounding_box_degrees
+    where_clause = (
+        f"latitude IS NOT NULL AND longitude IS NOT NULL "
+        f"AND latitude > {lat_min} AND latitude < {lat_max} "
+        f"AND longitude > {lon_min} AND longitude < {lon_max}"
+    )
+
+    params = {
+        "$limit": 50,
+        "$where": where_clause,
+    }
+
     try:
-        # Build SODA v2 query with within_circle geospatial filter
-        where_clause = (
-            f"within_circle(location, {location.latitude}, {location.longitude}, {radius_degrees})"
-        )
-        
-        params = {
-            "$limit": 50,  # Retrieve more from API, will filter again
-            "$where": where_clause,
-        }
-        
         response = requests.get(
             CHICAGO_API_URL,
             params=params,
             timeout=API_TIMEOUT
         )
+        print(f"[crimes] URL: {response.url}", file=sys.stderr)
+        print(f"[crimes] status: {response.status_code}", file=sys.stderr)
         response.raise_for_status()
-        
         data = response.json()
-        if isinstance(data, list):
-            return data
-        return None
-    except Exception as e:
-        # Note: silently return None on any API failure for graceful fallback
-        return None
+        print(f"[crimes] records returned: {len(data)}", file=sys.stderr)
+       
+        if data:
+            print(f"[crimes] sample record: {list(data[0])}", file=sys.stderr)
+    except Exception as exc:
+        raise RuntimeError(f"Chicago crime API request failed: {exc}") from exc
+
+    if not isinstance(data, list):
+        raise RuntimeError("Chicago crime API returned an unexpected payload")
+
+    return data
+
+def haversine(lat1, lon1, lat2, lon2):
+    R = 6371  # Earth radius in km
+
+    phi1 = math.radians(lat1)
+    phi2 = math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlambda = math.radians(lon2 - lon1)
+
+    a = math.sin(dphi / 2) ** 2 + \
+        math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2) ** 2
+
+    return 2 * R * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
 
-def _load_crimes_from_mock() -> List[dict]:
-    """
-    Load crimes from local mock data file.
-    
-    Returns:
-        List of crime records from mock data
-    
-    Raises:
-        FileNotFoundError: If crimes.json cannot be found
-        json.JSONDecodeError: If crimes.json is invalid
-    """
-    data_dir = Path(__file__).parent.parent / "data"
-    crimes_file = data_dir / "crimes.json"
-    
-    if not crimes_file.exists():
-        raise FileNotFoundError(f"Crimes data file not found: {crimes_file}")
-    
-    with open(crimes_file, "r") as f:
-        crimes_data = json.load(f)
-    
-    if not isinstance(crimes_data, list):
-        raise ValueError("Crimes data must be a JSON array")
-    
-    return crimes_data
+def _load_nearby_incidents(location: LocationInput) -> List[CrimeRecord]:
+    """Load user-reported incidents from DB and filter to those within DISTANCE_THRESHOLD_KM."""
+    try:
+        from server.db import load_recent_incidents
+        incidents = load_recent_incidents()
+    except Exception as exc:
+        print(f"[crimes] could not load DB incidents: {exc}", file=sys.stderr)
+        return []
+
+    records = []
+    for inc in incidents:
+        dist = haversine(location.latitude, location.longitude, inc["latitude"], inc["longitude"])
+        if dist <= DISTANCE_THRESHOLD_KM:
+            records.append(CrimeRecord(
+                type="User Report",
+                severity=_derive_severity(inc["description"]),
+                distance=dist,
+                description=inc["description"],
+            ))
+    print(f"[crimes] {len(records)} nearby reported incidents from DB", file=sys.stderr)
+    return records
 
 
-def get_recent_crimes(location: LocationInput, limit: int = 5) -> List[CrimeRecord]:
-    """
-    Get crimes nearest to a given location.
-    
-    Attempts to fetch live data from Chicago Open Data API (Socrata v2).
-    Falls back to local crimes.json if API is unavailable or returns empty results.
-    
-    Filters results by location to ensure only nearby crimes are returned.
-    Distance filtering is applied consistently regardless of data source.
-    
-    Args:
-        location: LocationInput with latitude and longitude
-        limit: Maximum number of crimes to return after filtering (default: 5)
-    
-    Returns:
-        List of CrimeRecord sorted by distance (nearest first).
-        Only includes crimes within DISTANCE_THRESHOLD_DEGREES of location.
-    """
-    crimes_data = None
-    
-    # Try to fetch from live API first
+def get_recent_crimes(location: LocationInput, limit: int = 10) -> List[CrimeRecord]:
     crimes_data = _fetch_crimes_from_api(location)
-    
-    # Fall back to mock data if API fails OR returns empty
-    if not crimes_data:
-        crimes_data = _load_crimes_from_mock()
-    
-    # Validate data structure
-    if not isinstance(crimes_data, list):
-        raise ValueError("Crimes data must be a JSON array")
     
     crimes_with_distance = []
     
     for crime in crimes_data:
-        # Extract fields from API or mock data
-        # API uses: primary_type, latitude, longitude
-        # Mock uses: type, lat, lon
-        crime_type = crime.get("primary_type") or crime.get("type", "Unknown")
-        
+        crime_type = (
+            crime.get("_primary_decsription") or
+            crime.get("primary_type") or
+            crime.get("PRIMARY_TYPE") or
+            "Unknown"
+        )
+        sub_description = (
+            crime.get("_secondary_description") or
+            crime.get("description") or
+            ""
+        )
+        lat_val = crime.get("latitude") or crime.get("lat")
+        lon_val = crime.get("longitude") or crime.get("lon")
+
+        if lat_val is None or lon_val is None:
+            continue
         try:
-            latitude = float(crime.get("latitude") or crime.get("lat", 0))
-            longitude = float(crime.get("longitude") or crime.get("lon", 0))
+            # latitude = float(crime.get("latitude") or crime.get("lat", 0))
+            # longitude = float(crime.get("longitude") or crime.get("lon", 0))
+            latitude = float(lat_val)
+            longitude = float(lon_val)
+
         except (ValueError, TypeError):
             # Skip records with invalid coordinates
             continue
-        
-        # Skip invalid records (zero or missing coordinates)
-        if not latitude or not longitude:
+
+        if latitude == 0 or longitude == 0:
             continue
         
         # Calculate Euclidean distance in degrees
-        lat_diff = latitude - location.latitude
-        lon_diff = longitude - location.longitude
-        distance = math.sqrt(lat_diff**2 + lon_diff**2)
+        # lat_diff = latitude - location.latitude
+        # lon_diff = longitude - location.longitude
+        # distance = math.sqrt(lat_diff**2 + lon_diff**2)
+
+        if abs(latitude - location.latitude) > BOUNDING_BOX_DEGREES:
+            continue
+        if abs(longitude - location.longitude) > BOUNDING_BOX_DEGREES:
+            continue
+
+        distance = haversine(location.latitude,location.longitude,latitude,longitude)
+
         
-        # CRITICAL: Apply strict distance filter
-        # Only include crimes within the defined threshold
-        if distance > DISTANCE_THRESHOLD_DEGREES:
+        
+        # Final filter: retain only crimes within haversine radius in km.
+        if distance > DISTANCE_THRESHOLD_KM:
             continue
         
-        # Create record with derived severity
         record = CrimeRecord(
             type=crime_type,
             severity=_derive_severity(crime_type),
-            distance=distance
+            distance=distance,
+            description=sub_description,
         )
         crimes_with_distance.append(record)
-    
-    # Sort by distance (nearest first) and apply limit AFTER filtering
+
+    crimes_with_distance += _load_nearby_incidents(location)
+
     crimes_with_distance.sort(key=lambda x: x.distance)
-    
-    # print(f"🔍 Location: ({location.latitude}, {location.longitude})")
-    # print(f"📊 Total crimes within {DISTANCE_THRESHOLD_DEGREES}° radius: {len(crimes_with_distance)}")
-    # print(f"✂️  Returning top {min(limit, len(crimes_with_distance))} crimes")
-    
+    print(
+        f"[crimes] {len(crimes_with_distance)} crimes within {DISTANCE_THRESHOLD_KM}km, "
+        f"returning {min(limit, len(crimes_with_distance))}",
+        file=sys.stderr,
+    )
     return crimes_with_distance[:limit]
